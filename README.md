@@ -1,3 +1,5 @@
+[![nodesource/node](http://dockeri.co/image/novacoast/s3backup)](https://registry.hub.docker.com/u/novacoast/s3backup/)
+
 # Info
 Docker image that creates and streams a tar backup of a host volume to Amazon S3 storage.
 
@@ -24,6 +26,7 @@ docker build -t s3backup .
 ```
 
 Then run the image, specifying your AWS credentials, bucket name, and backup path.
+
 ```
 docker run -it \
       -e AWS_ACCESS_KEY_ID=ID \
