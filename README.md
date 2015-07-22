@@ -1,8 +1,8 @@
 # Info
-Docker image that utilizes [https://github.com/rlmcpherson/s3gof3r](s3gof3r) to stream a tar backup to Amazon S3 storage.
+Docker image that creates and streams a tar backup of a host volume to Amazon S3 storage.
 
 + Lightweight: Based on [https://github.com/gliderlabs/docker-alpine](alpine) base image
-+ Fast: Backups are streamed directly to S3
++ Fast: Backups are streamed directly to S3 with [https://github.com/rlmcpherson/s3gof3r](s3gof3r)
 
 # Usage
 Run the automated build, specifying your AWS credentials, bucket name, and backup path.
@@ -23,6 +23,7 @@ First, build the image.
 docker build -t s3backup .
 ```
 
+Then run the image, specifying your AWS credentials, bucket name, and backup path.
 ```
 docker run -it \
       -e AWS_ACCESS_KEY_ID=ID \
