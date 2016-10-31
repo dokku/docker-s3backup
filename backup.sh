@@ -17,7 +17,7 @@ BUCKET_NAME=${BUCKET_NAME:-null}
 TARGET="$BACKUP_NAME /backup/"
 
 #System info
-TIMESTAMP=$(date +"%Y.%m.%d")
+TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
 ### Run backup to Amazon S3 Bucket
 IFS=$'\n'
