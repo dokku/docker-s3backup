@@ -1,5 +1,5 @@
 FROM alpine:latest
-RUN apk --update add bash gzip tar go openssl ca-certificates
+RUN apk --update add bash gzip tar go openssl ca-certificates wget
 COPY backup.sh /usr/bin/backup.sh
 RUN mkdir -p /go/bin && chmod -R 777 /go
 ENV GOPATH /go
