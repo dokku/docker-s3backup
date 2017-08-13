@@ -20,6 +20,11 @@ TARGET="$BACKUP_NAME backup/"
 #System info
 TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
+### Setup AWS signature version if specified
+if [ "x$AWS_SIGNATURE_VERSION" != "x" ]; then
+	aws configure set default.s3.signature_version $AWS_SIGNATURE_VERSION
+fi
+
 ### Run backup to Amazon S3 Bucket
 IFS=$'\n'
 for i in $TARGET
