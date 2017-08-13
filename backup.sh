@@ -15,7 +15,7 @@ BACKUP_NAME=${BACKUP_NAME:-backup}
 BUCKET_NAME=${BUCKET_NAME:-null}
 
 # Add entries as name and file location
-TARGET="$BACKUP_NAME /backup/"
+TARGET="$BACKUP_NAME backup/"
 
 #System info
 TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
