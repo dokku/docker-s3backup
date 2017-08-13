@@ -20,6 +20,11 @@ TARGET="$BACKUP_NAME backup/"
 #System info
 TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
+### Build endpoint parameter if endpoint given
+if [ "x$ENDPOINT_URL" != "x" ]; then
+	ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
+fi
+
 ### Setup AWS signature version if specified
 if [ "x$AWS_SIGNATURE_VERSION" != "x" ]; then
 	aws configure set default.s3.signature_version $AWS_SIGNATURE_VERSION
@@ -31,7 +36,7 @@ for i in $TARGET
 do
 	NAME=$(echo $i | awk {'print $1'})
 	TARGET=$(echo $i | awk {'print $2'})
-	/bin/tar -czf - $TARGET | aws s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
+	/bin/tar -czf - $TARGET | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
 	if [ "$?" -eq "0" ]; then
 		echo "$TIMESTAMP: The backup for $NAME finished successfully."
 	else
