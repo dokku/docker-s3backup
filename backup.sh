@@ -21,12 +21,12 @@ TARGET="$BACKUP_NAME backup/"
 TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
 ### Build endpoint parameter if endpoint given
-if [ "x$ENDPOINT_URL" != "x" ]; then
+if [ -n "$ENDPOINT_URL" ]; then
 	ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
 fi
 
 ### Setup AWS signature version if specified
-if [ "x$AWS_SIGNATURE_VERSION" != "x" ]; then
+if [ -n "$AWS_SIGNATURE_VERSION" ]; then
 	aws configure set default.s3.signature_version $AWS_SIGNATURE_VERSION
 fi
 
