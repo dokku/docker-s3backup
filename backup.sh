@@ -37,7 +37,7 @@ do
 	NAME=$(echo $i | awk {'print $1'})
 	TARGET=$(echo $i | awk {'print $2'})
 	if [[ -n "$ENCRYPTION_KEY" ]]; then
-		/bin/tar -czf - $TARGET | gpg --batch -q -c --passphrase $ENCRYPTION_KEY | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg
+		/bin/tar -czf - $TARGET | gpg --batch --no-tty -q -c --passphrase $ENCRYPTION_KEY | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg
 	else
 		/bin/tar -czf - $TARGET | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
 	fi
