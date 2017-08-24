@@ -34,6 +34,19 @@ docker run -it \
       -v /path/to/backup:/backup dokkupaas/s3backup
 ```
 
+# Encryption
+You can optionally encrypt your backup using GnuPG. To do so, set ENCRYPTION_KEY.
+
+```
+docker run -it \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e ENCRYPTION_KEY=your_secret_passphrase
+      -v /path/to/backup:/backup dokkupaas/s3backup
+```
+
 ## Build Locally
 
 First, build the image.

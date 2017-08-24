@@ -36,7 +36,11 @@ for i in $TARGET
 do
 	NAME=$(echo $i | awk {'print $1'})
 	TARGET=$(echo $i | awk {'print $2'})
-	/bin/tar -czf - $TARGET | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
+	if [[ -n "$ENCRYPTION_KEY" ]]; then
+		/bin/tar -czf - $TARGET | gpg --batch -q -c --passphrase $ENCRYPTION_KEY | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg
+	else
+		/bin/tar -czf - $TARGET | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
+	fi
 	if [ "$?" -eq "0" ]; then
 		echo "$TIMESTAMP: The backup for $NAME finished successfully."
 	else
