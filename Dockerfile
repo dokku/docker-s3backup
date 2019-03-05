@@ -1,4 +1,4 @@
-FROM alpine:3.5
+FROM alpine:3.9
 
 RUN apk --no-cache add bash gzip groff less python py-pip tar openssl ca-certificates gnupg && \
     pip --no-cache-dir install awscli==1.11.76 && \
