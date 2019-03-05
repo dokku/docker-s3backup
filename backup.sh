@@ -1,9 +1,9 @@
 #!/bin/bash
 set -e
 
-if [ ! -d "/backup" ]; then
-	echo "Please mount a directory to backup with -v /backup:/backup"
-	exit 1
+if [[ ! -d "/backup" ]]; then
+  echo "Please mount a directory to backup with -v /backup:/backup"
+  exit 1
 fi
 
 #Amazon S3 info
@@ -22,29 +22,32 @@ TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
 ### Build endpoint parameter if endpoint given
 if [[ -n "$ENDPOINT_URL" ]]; then
-	ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
+  ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
 fi
 
 ### Setup AWS signature version if specified
 if [[ -n "$AWS_SIGNATURE_VERSION" ]]; then
-	aws configure set default.s3.signature_version $AWS_SIGNATURE_VERSION
+  aws configure set default.s3.signature_version "$AWS_SIGNATURE_VERSION"
 fi
 
 ### Run backup to Amazon S3 Bucket
 IFS=$'\n'
-for i in $TARGET
-do
-	NAME=$(echo $i | awk {'print $1'})
-	TARGET=$(echo $i | awk {'print $2'})
-	if [[ -n "$ENCRYPTION_KEY" ]]; then
-		/bin/tar -czf - $TARGET | gpg --batch --no-tty -q -c --passphrase $ENCRYPTION_KEY | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg
-	else
-		/bin/tar -czf - $TARGET | aws $ENDPOINT_URL_PARAMETER s3 cp - s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz
-	fi
-	if [ "$?" -eq "0" ]; then
-		echo "$TIMESTAMP: The backup for $NAME finished successfully."
-	else
-		echo "Backup of $TARGET has failed. Please look into this and find out what went wrong"
-	fi
+for i in $TARGET; do
+  NAME=$(echo "$i" | awk "{'print $1'}")
+  TARGET=$(echo "$i" | awk "{'print $2'}")
+  if [[ -n "$ENCRYPTION_KEY" ]]; then
+    # shellcheck disable=SC2086
+    /bin/tar -czf - "$TARGET" | gpg --batch --no-tty -q -c --passphrase "$ENCRYPTION_KEY" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg"
+  else
+    # shellcheck disable=SC2086
+    /bin/tar -czf - "$TARGET" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz"
+  fi
+
+  # shellcheck disable=SC2181
+  if [[ "$?" -eq "0" ]]; then
+    echo "$TIMESTAMP: The backup for $NAME finished successfully."
+  else
+    echo "Backup of $TARGET has failed. Please look into this and find out what went wrong"
+  fi
 done
 ### Finish Amazon backup
