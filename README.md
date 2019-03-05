@@ -1,4 +1,4 @@
-#  docker-s3-backup
+#  docker-s3backup
 
 [![dokku/s3backup](http://dockeri.co/image/dokku/s3backup)](https://registry.hub.docker.com/u/dokku/s3backup/)
 
@@ -20,7 +20,7 @@ docker run -it \
       -e AWS_SECRET_ACCESS_KEY=KEY \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
-      -v /path/to/backup:/backup dokku/s3-backup
+      -v /path/to/backup:/backup dokku/s3backup
 ```
 
 ### Advanced Usage
@@ -36,7 +36,7 @@ docker run -it \
       -e ENDPOINT_URL=https://YOURAPIURL \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
-      -v /path/to/backup:/backup dokku/s3-backup
+      -v /path/to/backup:/backup dokku/s3backup
 ```
 
 ### Encryption
@@ -50,7 +50,7 @@ docker run -it \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
       -e ENCRYPTION_KEY=your_secret_passphrase
-      -v /path/to/backup:/backup dokku/s3-backup
+      -v /path/to/backup:/backup dokku/s3backup
 ```
 
 ## Building
@@ -58,7 +58,7 @@ docker run -it \
 First, build the image.
 
 ```shell
-docker build -t s3-backup .
+docker build -t s3backup .
 ```
 
 Then run the image, specifying your AWS credentials, bucket name, and backup path.
@@ -69,5 +69,5 @@ docker run -it \
       -e AWS_SECRET_ACCESS_KEY=KEY \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
-      -v /path/to/backup:/backup s3-backup
+      -v /path/to/backup:/backup s3backup
 ```
