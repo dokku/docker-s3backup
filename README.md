@@ -1,6 +1,6 @@
 #  docker-s3-backup
 
-[![nodesource/node](http://dockeri.co/image/dokkupaas/s3-backup)](https://registry.hub.docker.com/u/dokkupaas/s3-backup/)
+[![dokku/s3backup](http://dockeri.co/image/dokku/s3backup)](https://registry.hub.docker.com/u/dokku/s3backup/)
 
 ## Info
 
