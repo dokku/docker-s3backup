@@ -1,5 +1,6 @@
 #!/bin/bash
 set -eo pipefail
+[[ -n "$TRACE" ]] && set -x
 
 if [[ ! -d "/backup" ]]; then
   echo "Please mount a directory to backup with -v /backup:/backup"
