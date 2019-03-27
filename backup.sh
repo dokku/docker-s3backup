@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -eo pipefail
 
 if [[ ! -d "/backup" ]]; then
   echo "Please mount a directory to backup with -v /backup:/backup"
