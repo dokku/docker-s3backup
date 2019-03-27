@@ -15,9 +15,6 @@ AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-null}
 BACKUP_NAME=${BACKUP_NAME:-backup}
 BUCKET_NAME=${BUCKET_NAME:-null}
 
-# Add entries as name and file location
-TARGET="$BACKUP_NAME backup/"
-
 #System info
 TIMESTAMP=$(date -u "+%Y-%m-%d-%H-%M-%S")
 
@@ -32,23 +29,20 @@ if [[ -n "$AWS_SIGNATURE_VERSION" ]]; then
 fi
 
 ### Run backup to Amazon S3 Bucket
-IFS=$'\n'
-for i in $TARGET; do
-  NAME=$(echo "$i" | awk "{'print $1'}")
-  TARGET=$(echo "$i" | awk "{'print $2'}")
-  if [[ -n "$ENCRYPTION_KEY" ]]; then
-    # shellcheck disable=SC2086
-    /bin/tar -czf - "$TARGET" | gpg --batch --no-tty -q -c --passphrase "$ENCRYPTION_KEY" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz.gpg"
-  else
-    # shellcheck disable=SC2086
-    /bin/tar -czf - "$TARGET" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$NAME-$TIMESTAMP.tgz"
-  fi
+TARGET="backup/"
+if [[ -n "$ENCRYPTION_KEY" ]]; then
+  # shellcheck disable=SC2086
+  /bin/tar -czf - "$TARGET" | gpg --batch --no-tty -q -c --passphrase "$ENCRYPTION_KEY" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg"
+else
+  # shellcheck disable=SC2086
+  /bin/tar -czf - "$TARGET" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz"
+fi
 
-  # shellcheck disable=SC2181
-  if [[ "$?" -eq "0" ]]; then
-    echo "$TIMESTAMP: The backup for $NAME finished successfully."
-  else
-    echo "Backup of $TARGET has failed. Please look into this and find out what went wrong"
-  fi
+# shellcheck disable=SC2181
+if [[ "$?" -eq "0" ]]; then
+  echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
+else
+  echo "Backup of $TARGET has failed. Please look into this and find out what went wrong"
+fi
 done
 ### Finish Amazon backup
