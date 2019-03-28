@@ -44,5 +44,4 @@ if [[ "$?" -eq "0" ]]; then
 else
   echo "Backup of $TARGET has failed. Please look into this and find out what went wrong"
 fi
-done
 ### Finish Amazon backup
