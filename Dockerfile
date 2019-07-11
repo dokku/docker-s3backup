@@ -1,5 +1,7 @@
 FROM alpine:3.9
 
+MAINTAINER Jose Diaz-Gonzalez <dokku@josediazgonzalez.com>
+
 RUN apk --no-cache add bash gzip groff less python py-pip tar openssl ca-certificates gnupg && \
     pip --no-cache-dir install awscli==1.11.76 && \
     apk --purge -v del py-pip
