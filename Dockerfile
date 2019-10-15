@@ -1,4 +1,4 @@
-FROM alpine:3.10.0
+FROM alpine:3.10.2
 
 MAINTAINER Jose Diaz-Gonzalez <dokku@josediazgonzalez.com>
 
