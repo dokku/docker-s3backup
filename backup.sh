@@ -11,6 +11,7 @@ fi
 AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-null}
 AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-null}
 AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-null}
+S3_STORAGE_CLASS=${S3_STORAGE_CLASS:-STANDARD}
 
 BACKUP_NAME=${BACKUP_NAME:-backup}
 BUCKET_NAME=${BUCKET_NAME:-null}
@@ -32,10 +33,10 @@ fi
 TARGET="backup/"
 if [[ -n "$ENCRYPTION_KEY" ]]; then
   # shellcheck disable=SC2086
-  /bin/tar -czf - "$TARGET" | gpg --batch --no-tty -q -c --passphrase "$ENCRYPTION_KEY" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg"
+  /bin/tar -czf - "$TARGET" | gpg --batch --no-tty -q -c --passphrase "$ENCRYPTION_KEY" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg" --storage-class $S3_STORAGE_CLASS
 else
   # shellcheck disable=SC2086
-  /bin/tar -czf - "$TARGET" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz"
+  /bin/tar -czf - "$TARGET" | aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz" --storage-class $S3_STORAGE_CLASS
 fi
 
 # shellcheck disable=SC2181
