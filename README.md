@@ -25,7 +25,7 @@ docker run -it \
 
 ### Advanced Usage
 
-Example with different region, different signature version and call to S3-compatible service (different endpoint url)
+Example with different region, different S3 storage class, different signature version and call to S3-compatible service (different endpoint url)
 
 ```shell
 docker run -it \
@@ -33,6 +33,7 @@ docker run -it \
       -e AWS_SECRET_ACCESS_KEY=KEY \
       -e AWS_DEFAULT_REGION=us-east-1 \
       -e AWS_SIGNATURE_VERSION=s3v4 \
+      -e S3_STORAGE_CLASS=STANDARD_IA \
       -e ENDPOINT_URL=https://YOURAPIURL \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
