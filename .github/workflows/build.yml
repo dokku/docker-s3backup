@@ -17,8 +17,8 @@ jobs:
         uses: docker/metadata-action@v3
         with:
           images: |
-            alexbabel/s3backup
-            ghcr.io/alexanderbabel/s3backup
+            dokku/s3backup
+            ghcr.io/dokku/s3backup
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
