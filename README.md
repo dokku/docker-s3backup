@@ -1,4 +1,4 @@
-#  docker-s3backup
+# docker-s3backup
 
 [![dokku/s3backup](http://dockeri.co/image/dokku/s3backup)](https://registry.hub.docker.com/r/dokku/s3backup/)
 
@@ -44,7 +44,7 @@ docker run -it \
 
 You can optionally encrypt your backup using GnuPG. To do so, set ENCRYPTION_KEY.
 
-```
+```shell
 docker run -it \
       -e AWS_ACCESS_KEY_ID=ID \
       -e AWS_SECRET_ACCESS_KEY=KEY \

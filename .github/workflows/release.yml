@@ -1,6 +1,7 @@
 ---
 name: release
 
+# yamllint disable-line rule:truthy
 on:
   push:
     tags:
@@ -32,7 +33,7 @@ jobs:
 
       - name: Login to DockerHub
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v1 
+        uses: docker/login-action@v1
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
