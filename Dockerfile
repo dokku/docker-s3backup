@@ -1,4 +1,4 @@
-FROM alpine:3.18.4
+FROM alpine:3.18.5
 
 # hadolint ignore=DL3018
 RUN apk --no-cache add bash gzip groff less python3 py3-pip py3-urllib3 py3-six py3-colorama tar openssl ca-certificates gnupg && \
