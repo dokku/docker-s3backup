@@ -13,7 +13,6 @@ fi
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-null}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-null}"
 AWS_DEFAULT_REGION="${AWS_DEFAULT_REGION:-null}"
-S3_STORAGE_CLASS="${S3_STORAGE_CLASS:-STANDARD}"
 
 BACKUP_NAME="${BACKUP_NAME:-backup}"
 BUCKET_NAME="${BUCKET_NAME:-null}"
@@ -27,6 +26,11 @@ TIMESTAMP="$(date -u "+%Y-%m-%d-%H-%M-%S")"
 # Build endpoint parameter if endpoint given
 if [[ -n "$ENDPOINT_URL" ]]; then
   ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
+fi
+
+# Add the StorageClass parameter if specified
+if [[ -n "$S3_STORAGE_CLASS" ]]; then
+  S3_STORAGE_CLASS_PARAMETER="--storage-class=$S3_STORAGE_CLASS"
 fi
 
 # Setup AWS signature version if specified
@@ -57,10 +61,10 @@ encrypt_stream() {
 upload_to_s3() {
   if [[ "$1" == "encrypted" ]]; then
     # shellcheck disable=SC2086
-    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg" --storage-class $S3_STORAGE_CLASS
+    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg" $S3_STORAGE_CLASS_PARAMETER
   else
     # shellcheck disable=SC2086
-    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz" --storage-class $S3_STORAGE_CLASS
+    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz" $S3_STORAGE_CLASS_PARAMETER
   fi
 }
 
