@@ -25,7 +25,8 @@ docker run -it \
 
 ### Advanced Usage
 
-Example with different region, different S3 storage class, different signature version and call to S3-compatible service (different endpoint url)
+Example with different region, different S3 storage class, different signature version and call to S3-compatible
+service (different endpoint url)
 
 ```shell
 docker run -it \
@@ -42,7 +43,8 @@ docker run -it \
 
 ### Encryption
 
-You can optionally encrypt your backup using GnuPG. To do so, set ENCRYPTION_KEY.
+You can optionally encrypt your backup using GnuPG. To do so, set ENCRYPTION_KEY. This would encrypt the backup with the
+passphrase "your_secret_passphrase". The cypher algorithm used is AES256.
 
 ```shell
 docker run -it \
@@ -51,6 +53,37 @@ docker run -it \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
       -e ENCRYPTION_KEY=your_secret_passphrase
+      -v /path/to/backup:/backup dokku/s3backup
+```
+
+You can also use a GPG public key to encrypt the backup. To do so, set ENCRYPTION_KEY to the public key. This would
+encrypt the backup with the public key. **The backup can only be decrypted with the corresponding private key**, making
+it impossible to encrypt your data even if the backups and all the configuration files are compromised.
+
+```shell
+docker run -it \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e ENCRYPT_WITH_PUBLIC_KEY_ID=public_key_id \
+      -v /path/to/backup:/backup dokku/s3backup
+```
+
+In the above command, replace `public_key_id` with the ID (or, even better, the fingerprint) of your GPG public key. The
+backup will be encrypted using this
+public key and can only be decrypted with the corresponding private key. Please note that the public key must be
+available on the keyserver specified by the KEYSERVER environment variable. By default, this is set
+to `hkp://keyserver.ubuntu.com` and can be overridden by setting the KEYSERVER environment variable:
+
+```shell
+docker run -it \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e ENCRYPT_WITH_PUBLIC_KEY_ID=public_key_id \
+      -e KEYSERVER=hkp://pgp.mit.edu \
       -v /path/to/backup:/backup dokku/s3backup
 ```
 
