@@ -31,7 +31,7 @@ jobs:
         uses: avto-dev/markdown-lint@04d43ee9191307b50935a753da3b775ab695eceb
         # v1.5.0 => 04d43ee9191307b50935a753da3b775ab695eceb
         with:
-          config: ".github/linters/.markdown-lint.yml"
+          config: ".github/linters/.markdown-lint.yaml"
           args: "./README.md"
 
   shellcheck:
@@ -71,4 +71,4 @@ jobs:
         uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c
         # v3.0.2 => c19bd0523a9011c3a3960fe6640a0882b59af15d
         with:
-          config_file: ".github/linters/.yamllint.yml"
+          config_file: ".github/linters/.yamllint.yaml"
