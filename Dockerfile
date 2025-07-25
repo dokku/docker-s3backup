@@ -1,4 +1,4 @@
-FROM alpine:3.22.0
+FROM alpine:3.22.1
 
 # hadolint ignore=DL3018
 RUN apk --no-cache add bash gzip groff less aws-cli tar openssl ca-certificates gnupg
