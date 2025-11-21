@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Run hadolint
         uses: hadolint/hadolint-action@2332a7b74a6de0dda2e2221d575162eba76ba5e5
         # v1.5.0 => c27bd9edc1e95eed30474db8f295ff5807ebca14
@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Run markdown-lint
         uses: avto-dev/markdown-lint@04d43ee9191307b50935a753da3b775ab695eceb
         # v1.5.0 => 04d43ee9191307b50935a753da3b775ab695eceb
@@ -43,7 +43,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Run shellcheck
         uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38
         # 1.1.0 => 94e0aab03ca135d11a35e5bfc14e6746dc56e7e9
@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Run shfmt
         uses: luizm/action-sh-checker@17bd25a6ee188d2b91f677060038f4ba37ba14b2
         # v0.3.0 => 7f44869033b40ee4ffe7dc76c87a1bc66e3d025a
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Clone
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Run yamllint
         uses: ibiqlik/action-yamllint@2576378a8e339169678f9939646ee3ee325e845c
         # v3.0.2 => c19bd0523a9011c3a3960fe6640a0882b59af15d
