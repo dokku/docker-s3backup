@@ -23,6 +23,17 @@ KEYSERVER="${KEYSERVER:-hkp://keyserver.ubuntu.com}"
 # Set timestamp for backup
 TIMESTAMP="$(date -u "+%Y-%m-%d-%H-%M-%S")"
 
+# Function to send uptime notification
+send_uptime_notification() {
+  if [[ -n "$DB_BACKUP_PUSH_UPTIME_NOTIFY_URL" ]]; then
+    if curl -s -f -o /dev/null "$DB_BACKUP_PUSH_UPTIME_NOTIFY_URL"; then
+      echo "Uptime notification sent successfully."
+    else
+      echo "Warning: Failed to send uptime notification to $DB_BACKUP_PUSH_UPTIME_NOTIFY_URL"
+    fi
+  fi
+}
+
 # Build endpoint parameter if endpoint given
 if [[ -n "$ENDPOINT_URL" ]]; then
   ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
@@ -73,6 +84,7 @@ if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]]; then
   if gpg --quiet --keyserver "$KEYSERVER" --recv-keys "$ENCRYPT_WITH_PUBLIC_KEY_ID"; then
     if create_tar_archive | encrypt_stream "public_key" | upload_to_s3 "encrypted"; then
       echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
+      send_uptime_notification
     else
       echo "Backup of $TARGET has failed. Please investigate the issue."
       exit 1
@@ -84,6 +96,7 @@ if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]]; then
 elif [[ -n "$ENCRYPTION_KEY" ]]; then
   if create_tar_archive | encrypt_stream "encryption_key" | upload_to_s3 "encrypted"; then
     echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
+    send_uptime_notification
   else
     echo "Backup of $TARGET has failed. Please investigate the issue."
     exit 1
@@ -91,6 +104,7 @@ elif [[ -n "$ENCRYPTION_KEY" ]]; then
 else
   if create_tar_archive | encrypt_stream "no_encryption" | upload_to_s3 "unencrypted"; then
     echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
+    send_uptime_notification
   else
     echo "Backup of $TARGET has failed. Please investigate the issue."
     exit 1
