@@ -23,6 +23,29 @@ docker run -it \
       -v /path/to/backup:/backup dokku/s3backup
 ```
 
+The backup fails if `/backup` is empty. Docker mounts an empty directory when the host path does not exist, which
+happens when the path is not visible to the docker daemon, such as when `docker run` is called from inside another
+container.
+
+### Streaming from stdin
+
+Set `BACKUP_SOURCE=stdin` to read the backup from stdin instead of from a mounted directory. Stdin must be an
+uncompressed tar stream, and the uploaded object has the same `.tgz` layout as a backup of a mounted directory. Nothing
+is mounted, so this works wherever `docker run` is called from.
+
+```shell
+tar --create --file - backup/ | docker run -i \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e BACKUP_SOURCE=stdin \
+      dokku/s3backup
+```
+
+The stream is checked while it is uploaded. If it is incomplete, invalid, or holds no files, the uploaded object is
+removed and the backup fails.
+
 ### Advanced Usage
 
 Example with different region, different S3 storage class, different signature version and call to S3-compatible
@@ -104,4 +127,15 @@ docker run -it \
       -e BUCKET_NAME=backups \
       -e BACKUP_NAME=backup \
       -v /path/to/backup:/backup s3backup
+```
+
+## Testing
+
+The tests are written in [bats](https://github.com/bats-core/bats-core) and run the image against a local S3 server.
+They load [bats-support](https://github.com/bats-core/bats-support) and
+[bats-assert](https://github.com/bats-core/bats-assert) from `BATS_LIB_PATH`.
+
+```shell
+docker build -t dokku/s3backup:test .
+IMAGE=dokku/s3backup:test bats tests
 ```

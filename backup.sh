@@ -3,11 +3,35 @@
 set -eo pipefail
 [[ -n "$TRACE" ]] && set -x
 
-# Check if backup directory exists
-if [[ ! -d "/backup" ]]; then
-  echo "Please mount a directory to backup with -v /backup:/backup"
+# Where the backup is read from: a directory mounted at /backup, or a tar stream on stdin
+BACKUP_SOURCE="${BACKUP_SOURCE:-directory}"
+
+case "$BACKUP_SOURCE" in
+directory)
+  # Check if backup directory exists
+  if [[ ! -d "/backup" ]]; then
+    echo "Please mount a directory to backup with -v /backup:/backup"
+    exit 1
+  fi
+
+  # Docker mounts an empty directory when the host path does not exist, which
+  # happens when the path is not visible to the docker daemon
+  if [[ -z "$(find /backup -mindepth 1 -print -quit)" ]]; then
+    echo "The /backup directory is empty. Please check that the mounted host path exists and is visible to the docker daemon."
+    exit 1
+  fi
+  ;;
+stdin)
+  if [[ -t 0 ]]; then
+    echo "Please pipe a tar stream to backup with docker run -i"
+    exit 1
+  fi
+  ;;
+*)
+  echo "Invalid BACKUP_SOURCE '$BACKUP_SOURCE', must be one of: directory, stdin"
   exit 1
-fi
+  ;;
+esac
 
 # Set default values for Amazon S3 info
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-null}"
@@ -40,10 +64,52 @@ fi
 
 # Set target directory for backup
 TARGET="backup/"
+if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
+  TARGET="stdin"
+fi
+
+# Set the object key once, so that a failed backup removes the object it uploaded
+if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]] || [[ -n "$ENCRYPTION_KEY" ]]; then
+  OBJECT_KEY="$BACKUP_NAME-$TIMESTAMP.tgz.gpg"
+else
+  OBJECT_KEY="$BACKUP_NAME-$TIMESTAMP.tgz"
+fi
+
+# Function to start checking the tar stream on stdin while it is uploaded
+start_stdin_check() {
+  STDIN_CHECK_DIR="$(mktemp -d)"
+  STDIN_FIFO="$STDIN_CHECK_DIR/stream"
+  mkfifo "$STDIN_FIFO"
+  tar --list --verbose --file - <"$STDIN_FIFO" >"$STDIN_CHECK_DIR/entries" &
+  STDIN_CHECK_PID="$!"
+}
+
+# Function to report whether the tar stream on stdin was complete and held a file.
+# A writer that dies mid-stream only closes stdin, which would otherwise upload a
+# truncated archive as a success
+stdin_check_passed() {
+  if [[ "$BACKUP_SOURCE" != "stdin" ]]; then
+    return 0
+  fi
+
+  if ! wait "$STDIN_CHECK_PID"; then
+    echo "The tar stream on stdin was incomplete or invalid."
+    return 1
+  fi
+
+  if ! grep -q '^-' "$STDIN_CHECK_DIR/entries"; then
+    echo "The tar stream on stdin contained no files."
+    return 1
+  fi
+}
 
 # Function to create a tar archive of the target directory
 create_tar_archive() {
-  tar --create --gzip --file - "$TARGET"
+  if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
+    tee "$STDIN_FIFO" | gzip
+  else
+    tar --create --gzip --file - "$TARGET"
+  fi
 }
 
 # Function to encrypt the input stream
@@ -59,40 +125,45 @@ encrypt_stream() {
 
 # Function to upload backup to S3
 upload_to_s3() {
-  if [[ "$1" == "encrypted" ]]; then
-    # shellcheck disable=SC2086
-    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz.gpg" $S3_STORAGE_CLASS_PARAMETER
+  # shellcheck disable=SC2086
+  aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$OBJECT_KEY" $S3_STORAGE_CLASS_PARAMETER
+}
+
+# Function to remove an upload made from an incomplete tar stream on stdin
+remove_failed_upload() {
+  if [[ "$BACKUP_SOURCE" != "stdin" ]]; then
+    return 0
+  fi
+
+  # shellcheck disable=SC2086
+  aws $ENDPOINT_URL_PARAMETER s3 rm "s3://$BUCKET_NAME/$OBJECT_KEY" >/dev/null 2>&1 || true
+}
+
+# Function to create, encrypt and upload the backup
+run_backup() {
+  if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
+    start_stdin_check
+  fi
+
+  if create_tar_archive | encrypt_stream "$1" | upload_to_s3 && stdin_check_passed; then
+    echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
   else
-    # shellcheck disable=SC2086
-    aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$BACKUP_NAME-$TIMESTAMP.tgz" $S3_STORAGE_CLASS_PARAMETER
+    remove_failed_upload
+    echo "Backup of $TARGET has failed. Please investigate the issue."
+    exit 1
   fi
 }
 
 # Perform backup based on encryption method
 if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]]; then
   if gpg --quiet --keyserver "$KEYSERVER" --recv-keys "$ENCRYPT_WITH_PUBLIC_KEY_ID"; then
-    if create_tar_archive | encrypt_stream "public_key" | upload_to_s3 "encrypted"; then
-      echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
-    else
-      echo "Backup of $TARGET has failed. Please investigate the issue."
-      exit 1
-    fi
+    run_backup "public_key"
   else
     echo "Error: Failed to retrieve the public key from the keyserver."
     exit 1
   fi
 elif [[ -n "$ENCRYPTION_KEY" ]]; then
-  if create_tar_archive | encrypt_stream "encryption_key" | upload_to_s3 "encrypted"; then
-    echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
-  else
-    echo "Backup of $TARGET has failed. Please investigate the issue."
-    exit 1
-  fi
+  run_backup "encryption_key"
 else
-  if create_tar_archive | encrypt_stream "no_encryption" | upload_to_s3 "unencrypted"; then
-    echo "$TIMESTAMP: The backup for $BACKUP_NAME finished successfully."
-  else
-    echo "Backup of $TARGET has failed. Please investigate the issue."
-    exit 1
-  fi
+  run_backup "no_encryption"
 fi
