@@ -46,6 +46,30 @@ tar --create --file - backup/ | docker run -i \
 The stream is checked while it is uploaded. If it is incomplete, invalid, or holds no files, the uploaded object is
 removed and the backup fails.
 
+### Large backups
+
+Backups are uploaded to S3 in parts, and S3 allows at most 10,000 parts per upload. The aws cli uses 8 MiB parts by
+default, so an upload larger than about 78 GiB fails unless the part size is raised.
+
+Backups of a mounted directory estimate their size before uploading and raise the part size to fit. The size of a
+stream on stdin is not known ahead of time, so a stream larger than about 78 GiB needs `S3_EXPECTED_SIZE` set to its
+size in bytes. An overestimate is fine. `S3_EXPECTED_SIZE` also replaces the estimate for a mounted directory.
+
+```shell
+tar --create --file - backup/ | docker run -i \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e BACKUP_SOURCE=stdin \
+      -e S3_EXPECTED_SIZE=536870912000 \
+      dokku/s3backup
+```
+
+The starting part size can also be set with `S3_MULTIPART_CHUNKSIZE`, such as `S3_MULTIPART_CHUNKSIZE=64MB`. The aws
+cli still raises the part size when `S3_EXPECTED_SIZE` or the estimate needs larger parts. Larger parts use more
+memory while uploading.
+
 ### Advanced Usage
 
 Example with different region, different S3 storage class, different signature version and call to S3-compatible
