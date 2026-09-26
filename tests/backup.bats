@@ -73,10 +73,20 @@ assert_bucket_empty() {
   [[ -z "$keys" ]] || fail "expected no backup to be left behind, got: $keys"
 }
 
-# a directory holding a file with known contents, as backup/ would be mounted
+# a directory holding a file with known contents, as backup/ would be mounted,
+# optionally with the size of the file in bytes
 make_backup_dir() {
+  local size="${1:-1048576}"
   mkdir -p "$BATS_TEST_TMPDIR/backup"
-  head -c 1048576 /dev/urandom >"$BATS_TEST_TMPDIR/backup/export"
+  head -c "$size" /dev/urandom >"$BATS_TEST_TMPDIR/backup/export"
+}
+
+# downloads the only backup, extracts it, and checks it holds the file in backup/
+assert_backup_matches() {
+  download_backup "$BATS_TEST_TMPDIR/backup.tgz"
+  mkdir "$BATS_TEST_TMPDIR/extracted"
+  tar -xzf "$BATS_TEST_TMPDIR/backup.tgz" -C "$BATS_TEST_TMPDIR/extracted"
+  cmp "$BATS_TEST_TMPDIR/backup/export" "$BATS_TEST_TMPDIR/extracted/backup/export"
 }
 
 setup_file() {
@@ -113,11 +123,7 @@ setup() {
   run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup"
   assert_success
   assert_output --partial "The backup for test finished successfully."
-
-  download_backup "$BATS_TEST_TMPDIR/backup.tgz"
-  mkdir "$BATS_TEST_TMPDIR/extracted"
-  tar -xzf "$BATS_TEST_TMPDIR/backup.tgz" -C "$BATS_TEST_TMPDIR/extracted"
-  cmp "$BATS_TEST_TMPDIR/backup/export" "$BATS_TEST_TMPDIR/extracted/backup/export"
+  assert_backup_matches
 }
 
 @test "a missing directory is refused" {
@@ -150,11 +156,7 @@ setup() {
   run run_backup_from "$BATS_TEST_TMPDIR/backup.tar"
   assert_success
   assert_output --partial "The backup for test finished successfully."
-
-  download_backup "$BATS_TEST_TMPDIR/backup.tgz"
-  mkdir "$BATS_TEST_TMPDIR/extracted"
-  tar -xzf "$BATS_TEST_TMPDIR/backup.tgz" -C "$BATS_TEST_TMPDIR/extracted"
-  cmp "$BATS_TEST_TMPDIR/backup/export" "$BATS_TEST_TMPDIR/extracted/backup/export"
+  assert_backup_matches
 }
 
 @test "a tar stream on stdin is encrypted with a passphrase" {
@@ -202,4 +204,70 @@ setup() {
   assert_failure
   assert_output --partial "The tar stream on stdin was incomplete or invalid."
   assert_bucket_empty
+}
+
+@test "a mounted directory is uploaded with an estimated size" {
+  make_backup_dir
+
+  run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup" -e TRACE=1
+  assert_success
+  assert_output --regexp 'aws .*s3 cp - .* --expected-size=[0-9]+'
+  assert_backup_matches
+}
+
+@test "a mounted directory is uploaded with the given expected size" {
+  make_backup_dir
+
+  run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup" -e TRACE=1 -e S3_EXPECTED_SIZE=214748364800
+  assert_success
+  assert_output --partial -- "--expected-size=214748364800"
+  refute_output --partial "tar --create --file /dev/null"
+  assert_backup_matches
+}
+
+@test "a tar stream on stdin is uploaded with the given expected size" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1 -e S3_EXPECTED_SIZE=214748364800
+  assert_success
+  assert_output --partial -- "--expected-size=214748364800"
+  assert_backup_matches
+}
+
+@test "a tar stream on stdin is uploaded in parts of the given size" {
+  make_backup_dir 12582912
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1 -e S3_MULTIPART_CHUNKSIZE=5MB
+  assert_success
+  assert_output --partial "aws configure set default.s3.multipart_chunksize 5MB"
+  assert_backup_matches
+
+  # a multipart upload has an etag ending in the number of parts
+  run aws_cli s3api head-object --bucket "$BUCKET_NAME" --key "$(bucket_keys)" --query ETag --output text
+  assert_output --regexp '-3"?$'
+}
+
+@test "a tar stream on stdin is uploaded without an expected size by default" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1
+  assert_success
+  refute_output --partial -- "--expected-size"
+  assert_backup_matches
+}
+
+@test "an invalid expected size is refused" {
+  make_backup_dir
+  make_backup_tar
+
+  local size
+  for size in abc 0 010 5GB; do
+    run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e S3_EXPECTED_SIZE="$size"
+    assert_failure
+    assert_output --partial "Invalid S3_EXPECTED_SIZE '$size'"
+    assert_bucket_empty
+  done
 }

@@ -33,6 +33,13 @@ stdin)
   ;;
 esac
 
+# The expected size of the upload in bytes, so that large streams fit in the
+# 10,000 parts that S3 allows for a multipart upload
+if [[ -n "$S3_EXPECTED_SIZE" ]] && [[ ! "$S3_EXPECTED_SIZE" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Invalid S3_EXPECTED_SIZE '$S3_EXPECTED_SIZE', must be a positive number of bytes"
+  exit 1
+fi
+
 # Set default values for Amazon S3 info
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-null}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-null}"
@@ -62,6 +69,11 @@ if [[ -n "$AWS_SIGNATURE_VERSION" ]]; then
   aws configure set default.s3.signature_version "$AWS_SIGNATURE_VERSION"
 fi
 
+# Setup the multipart upload part size if specified
+if [[ -n "$S3_MULTIPART_CHUNKSIZE" ]]; then
+  aws configure set default.s3.multipart_chunksize "$S3_MULTIPART_CHUNKSIZE"
+fi
+
 # Set target directory for backup
 TARGET="backup/"
 if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
@@ -74,6 +86,17 @@ if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]] || [[ -n "$ENCRYPTION_KEY" ]]; then
 else
   OBJECT_KEY="$BACKUP_NAME-$TIMESTAMP.tgz"
 fi
+
+# Function to estimate the size of the uploaded backup of the target directory.
+# GNU tar skips reading file contents when the archive is /dev/null, so this is
+# quick. The margin covers gzip and gpg growing data that does not compress
+estimate_backup_size() {
+  local totals size
+  totals="$(tar --create --file /dev/null --totals "$TARGET" 2>&1 >/dev/null)" || return 1
+  size="$(sed -n 's/^Total bytes written: \([0-9]*\).*/\1/p' <<<"$totals")"
+  [[ -n "$size" ]] || return 1
+  echo "$((size + size / 10 + 1048576))"
+}
 
 # Function to start checking the tar stream on stdin while it is uploaded
 start_stdin_check() {
@@ -126,7 +149,7 @@ encrypt_stream() {
 # Function to upload backup to S3
 upload_to_s3() {
   # shellcheck disable=SC2086
-  aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$OBJECT_KEY" $S3_STORAGE_CLASS_PARAMETER
+  aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$OBJECT_KEY" $S3_STORAGE_CLASS_PARAMETER $EXPECTED_SIZE_PARAMETER
 }
 
 # Function to remove an upload made from an incomplete tar stream on stdin
@@ -153,6 +176,17 @@ run_backup() {
     exit 1
   fi
 }
+
+# Set the expected size of the upload, estimating it for a directory when not given
+if [[ -n "$S3_EXPECTED_SIZE" ]]; then
+  EXPECTED_SIZE_PARAMETER="--expected-size=$S3_EXPECTED_SIZE"
+elif [[ "$BACKUP_SOURCE" == "directory" ]]; then
+  if EXPECTED_SIZE="$(estimate_backup_size)"; then
+    EXPECTED_SIZE_PARAMETER="--expected-size=$EXPECTED_SIZE"
+  else
+    echo "Warning: Failed to estimate the size of $TARGET, backups larger than 78 GiB may fail to upload."
+  fi
+fi
 
 # Perform backup based on encryption method
 if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]]; then
