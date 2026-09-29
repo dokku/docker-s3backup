@@ -211,7 +211,9 @@ setup() {
 
   run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup" -e TRACE=1
   assert_success
-  assert_output --regexp 'aws .*s3 cp - .* --expected-size=[0-9]+'
+  # the trace of the upload itself is interleaved with the rest of the pipeline
+  # it runs in, so the parameter is checked where it is set rather than used
+  assert_output --regexp 'EXPECTED_SIZE_PARAMETER=--expected-size=[0-9]+'
   assert_backup_matches
 }
 
@@ -270,4 +272,27 @@ setup() {
     assert_output --partial "Invalid S3_EXPECTED_SIZE '$size'"
     assert_bucket_empty
   done
+}
+
+@test "an upload to an s3-compatible endpoint defaults checksums to when required" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1
+  assert_success
+  assert_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_required"
+  assert_output --partial "AWS_RESPONSE_CHECKSUM_VALIDATION=when_required"
+  assert_backup_matches
+}
+
+@test "a checksum setting that is given is kept" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1 -e AWS_REQUEST_CHECKSUM_CALCULATION=when_supported
+  assert_success
+  assert_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_supported"
+  refute_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_required"
+  assert_output --partial "AWS_RESPONSE_CHECKSUM_VALIDATION=when_required"
+  assert_backup_matches
 }

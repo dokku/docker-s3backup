@@ -57,6 +57,12 @@ TIMESTAMP="$(date -u "+%Y-%m-%d-%H-%M-%S")"
 # Build endpoint parameter if endpoint given
 if [[ -n "$ENDPOINT_URL" ]]; then
   ENDPOINT_URL_PARAMETER="--endpoint-url=$ENDPOINT_URL"
+
+  # Newer aws cli versions send upload checksums in a trailer without a
+  # Content-Length, which S3-compatible services such as Ceph reject. Only send
+  # checksums when an operation requires one, unless told otherwise
+  export AWS_REQUEST_CHECKSUM_CALCULATION="${AWS_REQUEST_CHECKSUM_CALCULATION:-when_required}"
+  export AWS_RESPONSE_CHECKSUM_VALIDATION="${AWS_RESPONSE_CHECKSUM_VALIDATION:-when_required}"
 fi
 
 # Add the StorageClass parameter if specified
