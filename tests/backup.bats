@@ -271,3 +271,26 @@ setup() {
     assert_bucket_empty
   done
 }
+
+@test "an upload to an s3-compatible endpoint defaults checksums to when required" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1
+  assert_success
+  assert_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_required"
+  assert_output --partial "AWS_RESPONSE_CHECKSUM_VALIDATION=when_required"
+  assert_backup_matches
+}
+
+@test "a checksum setting that is given is kept" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e TRACE=1 -e AWS_REQUEST_CHECKSUM_CALCULATION=when_supported
+  assert_success
+  assert_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_supported"
+  refute_output --partial "AWS_REQUEST_CHECKSUM_CALCULATION=when_required"
+  assert_output --partial "AWS_RESPONSE_CHECKSUM_VALIDATION=when_required"
+  assert_backup_matches
+}

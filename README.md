@@ -88,6 +88,11 @@ docker run -it \
       -v /path/to/backup:/backup dokku/s3backup
 ```
 
+Newer aws cli versions send upload checksums in a trailer without a `Content-Length`, which S3-compatible services such
+as Ceph reject with `MissingContentLength`. When `ENDPOINT_URL` is set, `AWS_REQUEST_CHECKSUM_CALCULATION` and
+`AWS_RESPONSE_CHECKSUM_VALIDATION` default to `when_required`, so checksums are only sent when an operation requires
+one. Either can be set to override the default. Without `ENDPOINT_URL`, the aws cli defaults apply.
+
 ### Encryption
 
 You can optionally encrypt your backup using GnuPG. To do so, set ENCRYPTION_KEY. This would encrypt the backup with the
