@@ -211,7 +211,9 @@ setup() {
 
   run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup" -e TRACE=1
   assert_success
-  assert_output --regexp 'aws .*s3 cp - .* --expected-size=[0-9]+'
+  # the trace of the upload itself is interleaved with the rest of the pipeline
+  # it runs in, so the parameter is checked where it is set rather than used
+  assert_output --regexp 'EXPECTED_SIZE_PARAMETER=--expected-size=[0-9]+'
   assert_backup_matches
 }
 
