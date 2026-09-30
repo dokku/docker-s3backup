@@ -70,6 +70,30 @@ The starting part size can also be set with `S3_MULTIPART_CHUNKSIZE`, such as `S
 cli still raises the part size when `S3_EXPECTED_SIZE` or the estimate needs larger parts. Larger parts use more
 memory while uploading.
 
+### Object key
+
+Backups are uploaded to `$BACKUP_NAME-<timestamp>.tgz`, or `$BACKUP_NAME-<timestamp>.tgz.gpg` when encrypted, where the
+timestamp is the UTC time the backup started as `%Y-%m-%d-%H-%M-%S`. `BUCKET_NAME` may end in a path to upload under,
+such as `BUCKET_NAME=backups/postgres`.
+
+Set `BACKUP_TIMESTAMP=false` to upload every backup to the same key, `$BACKUP_NAME.tgz` or `$BACKUP_NAME.tgz.gpg`, so
+that [bucket versioning](https://docs.aws.amazon.com/AmazonS3/latest/userguide/Versioning.html) and lifecycle rules keep
+and rotate the backups. Without versioning, each backup replaces the one before it.
+
+```shell
+tar --create --file - backup/ | docker run -i \
+      -e AWS_ACCESS_KEY_ID=ID \
+      -e AWS_SECRET_ACCESS_KEY=KEY \
+      -e BUCKET_NAME=backups \
+      -e BACKUP_NAME=backup \
+      -e BACKUP_SOURCE=stdin \
+      -e BACKUP_TIMESTAMP=false \
+      dokku/s3backup
+```
+
+When a backup from stdin to a fixed key fails, only an object it uploaded is removed. On a versioned bucket that makes
+the previous backup current again, and an upload that never finished leaves the previous backup in place either way.
+
 ### Advanced Usage
 
 Example with different region, different S3 storage class, different signature version and call to S3-compatible
