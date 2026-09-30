@@ -40,6 +40,15 @@ if [[ -n "$S3_EXPECTED_SIZE" ]] && [[ ! "$S3_EXPECTED_SIZE" =~ ^[1-9][0-9]*$ ]];
   exit 1
 fi
 
+# Whether the object key ends in a timestamp. Without one every backup is
+# uploaded to the same key, so bucket versioning and lifecycle rules can keep
+# and rotate them
+BACKUP_TIMESTAMP="${BACKUP_TIMESTAMP:-true}"
+if [[ "$BACKUP_TIMESTAMP" != "true" ]] && [[ "$BACKUP_TIMESTAMP" != "false" ]]; then
+  echo "Invalid BACKUP_TIMESTAMP '$BACKUP_TIMESTAMP', must be one of: true, false"
+  exit 1
+fi
+
 # Set default values for Amazon S3 info
 AWS_ACCESS_KEY_ID="${AWS_ACCESS_KEY_ID:-null}"
 AWS_SECRET_ACCESS_KEY="${AWS_SECRET_ACCESS_KEY:-null}"
@@ -87,11 +96,22 @@ if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
 fi
 
 # Set the object key once, so that a failed backup removes the object it uploaded
-if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]] || [[ -n "$ENCRYPTION_KEY" ]]; then
-  OBJECT_KEY="$BACKUP_NAME-$TIMESTAMP.tgz.gpg"
-else
-  OBJECT_KEY="$BACKUP_NAME-$TIMESTAMP.tgz"
+OBJECT_NAME="$BACKUP_NAME-$TIMESTAMP"
+if [[ "$BACKUP_TIMESTAMP" == "false" ]]; then
+  OBJECT_NAME="$BACKUP_NAME"
 fi
+
+if [[ -n "$ENCRYPT_WITH_PUBLIC_KEY_ID" ]] || [[ -n "$ENCRYPTION_KEY" ]]; then
+  OBJECT_KEY="$OBJECT_NAME.tgz.gpg"
+else
+  OBJECT_KEY="$OBJECT_NAME.tgz"
+fi
+
+# The bucket name may end in a path the object is uploaded under, which the
+# s3api commands take as part of the key rather than of the bucket
+S3_BUCKET="${BUCKET_NAME%%/*}"
+S3_KEY="${BUCKET_NAME#"$S3_BUCKET"}/$OBJECT_KEY"
+S3_KEY="${S3_KEY#/}"
 
 # Function to estimate the size of the uploaded backup of the target directory.
 # GNU tar skips reading file contents when the archive is /dev/null, so this is
@@ -158,19 +178,68 @@ upload_to_s3() {
   aws $ENDPOINT_URL_PARAMETER s3 cp - "s3://$BUCKET_NAME/$OBJECT_KEY" $S3_STORAGE_CLASS_PARAMETER $EXPECTED_SIZE_PARAMETER
 }
 
+# Function to print the version, etag and modification time of the object at
+# the key, "none" when there is no object there and "unknown" when it could not
+# be read
+object_state() {
+  local output
+  # shellcheck disable=SC2086
+  if output="$(aws $ENDPOINT_URL_PARAMETER s3api head-object --bucket "$S3_BUCKET" --key "$S3_KEY" --query '[VersionId, ETag, LastModified]' --output text 2>&1)"; then
+    echo "$output"
+  elif [[ "$output" == *"(404)"* ]] || [[ "$output" == *"Not Found"* ]]; then
+    echo "none"
+  else
+    echo "unknown"
+  fi
+}
+
 # Function to remove an upload made from an incomplete tar stream on stdin
 remove_failed_upload() {
   if [[ "$BACKUP_SOURCE" != "stdin" ]]; then
     return 0
   fi
 
-  # shellcheck disable=SC2086
-  aws $ENDPOINT_URL_PARAMETER s3 rm "s3://$BUCKET_NAME/$OBJECT_KEY" >/dev/null 2>&1 || true
+  # Nothing was at a timestamped key before this backup, so whatever is there now
+  # was uploaded by it
+  if [[ "$BACKUP_TIMESTAMP" == "true" ]] || [[ "$PREVIOUS_OBJECT_STATE" == "none" ]]; then
+    # shellcheck disable=SC2086
+    aws $ENDPOINT_URL_PARAMETER s3 rm "s3://$BUCKET_NAME/$OBJECT_KEY" >/dev/null 2>&1 || true
+    return 0
+  fi
+
+  # A fixed key held the previous backup. Only the object this backup uploaded is
+  # removed, so the previous backup is kept when the upload never finished, and
+  # becomes current again on a versioned bucket when it did
+  local state version_id
+  state="$(object_state)"
+  if [[ "$PREVIOUS_OBJECT_STATE" == "unknown" ]] || [[ "$state" == "unknown" ]]; then
+    echo "Unable to tell whether s3://$BUCKET_NAME/$OBJECT_KEY is the failed upload, so it was not removed."
+    return 0
+  fi
+
+  if [[ "$state" == "none" ]] || [[ "$state" == "$PREVIOUS_OBJECT_STATE" ]]; then
+    return 0
+  fi
+
+  # the aws cli prints None for a bucket that has never been versioned
+  version_id="$(cut -f1 <<<"$state")"
+  if [[ -z "$version_id" ]] || [[ "$version_id" == "None" ]]; then
+    # shellcheck disable=SC2086
+    aws $ENDPOINT_URL_PARAMETER s3api delete-object --bucket "$S3_BUCKET" --key "$S3_KEY" >/dev/null 2>&1 || true
+  else
+    # shellcheck disable=SC2086
+    aws $ENDPOINT_URL_PARAMETER s3api delete-object --bucket "$S3_BUCKET" --key "$S3_KEY" --version-id "$version_id" >/dev/null 2>&1 || true
+  fi
 }
 
 # Function to create, encrypt and upload the backup
 run_backup() {
   if [[ "$BACKUP_SOURCE" == "stdin" ]]; then
+    # read before uploading, so that a failed backup to a fixed key can tell the
+    # object it uploaded from the previous backup
+    if [[ "$BACKUP_TIMESTAMP" == "false" ]]; then
+      PREVIOUS_OBJECT_STATE="$(object_state)"
+    fi
     start_stdin_check
   fi
 

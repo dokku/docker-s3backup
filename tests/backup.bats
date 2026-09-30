@@ -53,9 +53,10 @@ make_backup_tar() {
   COPYFILE_DISABLE=1 tar --no-xattrs -C "$BATS_TEST_TMPDIR" -cf "$BATS_TEST_TMPDIR/backup.tar" backup
 }
 
-# the keys in the bucket, one per line
+# the keys in the bucket, one per line. The s3 server keeps a path around once
+# the objects under it are removed, which is listed as a directory and skipped
 bucket_keys() {
-  aws_cli s3 ls "s3://$BUCKET_NAME/" | awk '{ print $4 }'
+  aws_cli s3 ls "s3://$BUCKET_NAME/" | awk '$1 != "PRE" { print $4 }'
 }
 
 # downloads the only object in the bucket to a file
@@ -272,6 +273,122 @@ setup() {
     assert_output --partial "Invalid S3_EXPECTED_SIZE '$size'"
     assert_bucket_empty
   done
+}
+
+@test "a backup without a timestamp is uploaded to the same key each time" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false
+  assert_success
+  assert_output --partial "The backup for test finished successfully."
+
+  # a second backup with different contents replaces the first
+  make_backup_dir
+  make_backup_tar
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false
+  assert_success
+
+  run bucket_keys
+  assert_output "test.tgz"
+  assert_backup_matches
+}
+
+@test "a mounted directory without a timestamp is uploaded to a fixed key" {
+  make_backup_dir
+
+  run run_backup -v "$BATS_TEST_TMPDIR/backup:/backup" -e BACKUP_TIMESTAMP=false
+  assert_success
+
+  run bucket_keys
+  assert_output "test.tgz"
+  assert_backup_matches
+}
+
+@test "an encrypted backup without a timestamp keeps the gpg extension" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false -e ENCRYPTION_KEY=passphrase
+  assert_success
+
+  run bucket_keys
+  assert_output "test.tgz.gpg"
+}
+
+@test "an invalid backup timestamp setting is refused" {
+  make_backup_dir
+  make_backup_tar
+
+  local value
+  for value in no FALSE 0; do
+    run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP="$value"
+    assert_failure
+    assert_output --partial "Invalid BACKUP_TIMESTAMP '$value'"
+    assert_bucket_empty
+  done
+}
+
+@test "a failed upload to a fixed key keeps the previous backup" {
+  make_backup_dir
+  make_backup_tar
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false
+  assert_success
+
+  # refused by the aws cli before anything is uploaded
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false -e S3_STORAGE_CLASS=NOT_A_CLASS
+  assert_failure
+
+  run bucket_keys
+  assert_output "test.tgz"
+  assert_backup_matches
+}
+
+@test "a truncated tar stream to a fixed key under a path removes only its own upload" {
+  local bucket="$BUCKET_NAME"
+
+  make_backup_dir
+  make_backup_tar
+  head -c 524288 "$BATS_TEST_TMPDIR/backup.tar" >"$BATS_TEST_TMPDIR/truncated.tar"
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false -e BUCKET_NAME="$bucket/path"
+  assert_success
+
+  run aws_cli s3 ls --recursive "s3://$bucket/"
+  assert_output --partial "path/test.tgz"
+
+  # without versioning the truncated upload already replaced the previous
+  # backup, and is removed rather than left in its place
+  run run_backup_from "$BATS_TEST_TMPDIR/truncated.tar" -e BACKUP_TIMESTAMP=false -e BUCKET_NAME="$bucket/path"
+  assert_failure
+  assert_output --partial "The tar stream on stdin was incomplete or invalid."
+
+  run aws_cli s3 ls --recursive "s3://$bucket/"
+  assert_output ""
+}
+
+@test "a truncated tar stream to a fixed key on a versioned bucket restores the previous backup" {
+  local bucket="versioned"
+  aws_cli s3 mb "s3://$bucket" >/dev/null 2>&1 || true
+  if ! aws_cli s3api put-bucket-versioning --bucket "$bucket" --versioning-configuration Status=Enabled >/dev/null 2>&1; then
+    skip "the s3 server does not support versioning"
+  fi
+
+  make_backup_dir
+  make_backup_tar
+  head -c 524288 "$BATS_TEST_TMPDIR/backup.tar" >"$BATS_TEST_TMPDIR/truncated.tar"
+
+  run run_backup_from "$BATS_TEST_TMPDIR/backup.tar" -e BACKUP_TIMESTAMP=false -e BUCKET_NAME="$bucket"
+  assert_success
+
+  run run_backup_from "$BATS_TEST_TMPDIR/truncated.tar" -e BACKUP_TIMESTAMP=false -e BUCKET_NAME="$bucket"
+  assert_failure
+
+  aws_cli s3 cp "s3://$bucket/test.tgz" - >"$BATS_TEST_TMPDIR/backup.tgz"
+  mkdir "$BATS_TEST_TMPDIR/extracted"
+  tar -xzf "$BATS_TEST_TMPDIR/backup.tgz" -C "$BATS_TEST_TMPDIR/extracted"
+  cmp "$BATS_TEST_TMPDIR/backup/export" "$BATS_TEST_TMPDIR/extracted/backup/export"
 }
 
 @test "an upload to an s3-compatible endpoint defaults checksums to when required" {
